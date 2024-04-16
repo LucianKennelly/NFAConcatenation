@@ -1,0 +1,206 @@
+import json # for json file manipulation
+import re # using regexes to see if the states are in correct format
+import sys
+def getNFA(first,second):
+    # getting all the necessary info for error testing and concatenation from two NFA json files
+    input1 = json.load(open(first))
+    input2 =json.load(open(second))
+    states1 = input1["states"]
+    states2 = input2["states"]
+    start1 = input1["start-state"]
+    start2 = input2["start-state"]
+    accept1 = input1["accept-state"]
+    accept2 = input2["accept-state"]
+    return states1,states2,start1,start2,accept1,accept2
+def generateStates(states1,states2):
+    # opens up return file to be read
+    with open("return.json", "r") as f:
+        data = json.load(f)
+    # concatenates the states of both NFAs to state for concatenated NFA
+    states = states1 + states2
+    data["states"]=states
+    # writes these changes to return file
+    with open("return.json","w") as f:
+        json.dump(data,f)
+    return states
+def addTransitions(accept1,start2):
+    # opens up return file to be read
+    with open("return.json","r") as f:
+        return1 = json.load(f)
+    # adds in the necessary transitions from 1st NFA's accepting states to 2nd NFA's starting state
+    for i in accept1:
+        counter = 1
+        for j in start2:
+            # extracting the state number to extract correct sublist
+            n = i.split("q",1)
+            n = int(n[1])
+            return1["states"][n]["e"]=j
+    # writes these changes to return file
+    with open("return.json","w") as f:
+        json.dump(return1,f)
+    # returns new states with transitions
+    return return1["states"]
+def findStartState(start1):
+    #just returns the start state of first NFA for final NFA
+    return start1    
+def findAcceptState(accept2):
+    #just returns the accepting states of second NFA for final NFA
+    return accept2
+def makeConcat(start,accept):
+    with open("return.json","r") as f:
+        data =json.load(f)
+    # updates start and accepting states of final NFA using values from findStartState and findAcceptState
+    data.update({"accept-state":accept})
+    data.update({"start-state":start})
+    with open("return.json","w") as outfile:
+        json.dump(data,outfile)
+def main():
+    first = sys.argv[1]
+    second = sys.argv[2]
+    # general error check to see if all necessary json fields exist
+    try:
+        states1,states2,start1,start2,accept1,accept2 = getNFA(first,second)
+    except Exception as e:
+        print("Input file is in wrong format {}",Exception)
+        exit()
+    # send both states of each NFA to be generated to states for final NFA
+    generateStates(states1,states2)
+    str1 = ''
+    str2 = ''
+    # creates a string for accepting states of first NFA
+    for i in accept1:
+        str1 += i
+    # creates a string for accepting states of second NFA
+    for j in accept2:
+        str2 += j
+    # checks if either of these are empty
+    if str1 == '' or str2 == '':
+        print("lack of accepting states")
+        exit()
+    # checks if 1st NFA's accepting states actually exist in 1st NFA's state transition table
+    for i in accept1:
+        # number of the accept state to reference transition table index correctly
+        n = i.split("q",1)
+        n = int(n[1])
+        try:
+            if i in states1[n]['state']:
+                pass
+        except:
+            print("accepting states do not exist")
+            exit()
+    # checks if 2nd NFA's accepting states actually exist in 2nd NFA's state transition table
+    for i in accept2:
+        # number of the accept state to reference transition table index correctly
+        n = i.split("r",1)
+        n = int(n[1])
+        try:
+            if i in states2[n]['state']:
+                pass
+        except:
+            print("accepting states do not exist")
+            exit()
+    str1 = ''
+    str2 = ''
+    # creates strings for start state of 1st and 2nd NFAs
+    for i in start1:
+        str1 += i
+    for j in start2:
+        str2 += j
+    #checks if they are empty or more than 1 start state, although more than 1 start state may be "technically" valid for NFA's
+    # I am not going to consider this possibility because this is not optimal notation and the NFA could be easily converted to
+    # have one start state instead
+    if str1 == '' or len(str1) > 2 or  str2 == '' or len(str2) > 2:
+        print("Invalid number of start states")
+        exit()
+    # checks if the 1st NFA's starting states exist in 1st NFA's transition table
+    n = start1[0].split("q",1)
+    # number of the start state to reference transition table index correctly
+    n = int(n[1])
+    try:
+        if start1[0] in states1[n]['state']:
+            pass
+    except:
+        print("starting state does not exist")
+        exit()
+    # checks if the 2nd NFA's starting states exist in 2nd NFA's transition table
+    n = start2[0].split("r",1)
+    # number of the start state to reference transition table index correctly
+    n = int(n[1])
+    
+    try:
+        if start2[0] in states2[n]['state']:
+            pass
+    except:
+        print("starting state does not exist")
+        exit()
+    # goes through each state in 1st NFA's transition table and makes sure they are ordered correctly
+    listOfStates1 = []
+    actualStates1 = []
+    n = 0
+    for i in states1:
+        j = str(n)
+        # creating a comparison string to check for correctness of order as well as use of q instead of r
+        string = "q" + j
+        actualStates1.append(i['state'])
+        if string != i['state']:
+            print("Input file is in wrong format")
+            exit()
+        n= n+1
+        for k in i:
+            if k != "state" and k != string and len(k)>1 and i[k]:
+                print("Input file is in wrong format")
+                exit()
+            elif i[k] != "state" and len(i[k]) >= 2 and i[k] not in listOfStates1: 
+                listOfStates1.append(i[k]) 
+    # final check that every state actually exists on state list
+    for i in listOfStates1:
+        if i not in actualStates1:
+            print("Extra states that don't exist")
+            exit()
+    # goes through each state in 2nd NFA's transition table and makes sure they are ordered correctly
+    listOfStates2 = []
+    actualStates2 = []
+    n = 0
+    for i in states2:
+        j = str(n)
+        # creating a comparison string to check for correctness of order as well as use of r instead of q
+        string = "r" + j
+        actualStates2.append(i['state'])
+        if string != i['state']:
+            print("Input file is in wrong format")
+            exit()
+        n= n+1
+        for k in i:
+            if k != "state" and k != string and len(k)>1 and i[k]:
+                print("Input file is in wrong format")
+                exit()
+            elif i[k] != "state" and len(i[k]) >= 2 and i[k] not in listOfStates2: 
+                listOfStates2.append(i[k]) 
+    # final check that every state actually exists on state list
+    for i in listOfStates2:
+        if i not in actualStates2:
+            print("Extra states that don't exist")
+            exit()
+    # everything is checked that can be before applying new transitions, so string is created with all transition letters
+    str3 = ""
+    states = addTransitions(accept1,start2)
+    for i in states:
+        for j in i:
+            if j != "state":
+                str3 += j
+    # checks that there are no incorrect transition letters e.i. any transition letters other than a binary a,b, or empty string e
+    if re.search('[c-d]|[f-z]|[C-D]|[F-Z]', str3):
+        print("Input file contains invalid characters")
+        exit()
+    start = findStartState(start1)
+    accept = findAcceptState(accept2)
+    # takes start states of 1st NFA and accept states of 2nd NFA to update the start and accept states of final NFA
+    makeConcat(start,accept)
+    # printing the resulting NFA
+    with open('return.json', 'r') as f:
+        data = json.load(f)
+    print("The resulting NFA is:")
+    print(json.dumps(data, indent=4))
+if __name__ == "__main__":
+    main()    
+

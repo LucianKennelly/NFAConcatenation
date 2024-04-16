@@ -1,0 +1,9 @@
+{
+    "states":[
+        {"state":"r0","c":"r1"},
+        {"state":"r1","a":"r0","e":"r2","d":"r2"},
+        {"state":"r2"}
+    ],
+    "start-state": ["r0"],
+    "accept-state": ["r2"]
+}
